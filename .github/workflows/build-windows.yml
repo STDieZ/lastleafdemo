@@ -1,0 +1,39 @@
+name: Build Lanleaf for Windows
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          architecture: x64
+
+      - name: Build and package
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:RUNNER_TEMP 'source'
+          Expand-Archive -LiteralPath 'Lanleaf-source.zip' -DestinationPath $source
+          Set-Location (Join-Path $source 'lanleaf')
+
+          flutter build windows --release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $release = 'build\windows\x64\runner\Release'
+          $zip = Join-Path $env:RUNNER_TEMP 'Lanleaf-Windows-x64.zip'
+          Compress-Archive -Path "$release\*" -DestinationPath $zip
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/Lanleaf-Windows-x64.zip
+          if-no-files-found: error
+          archive: false
