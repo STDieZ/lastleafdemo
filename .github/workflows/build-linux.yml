@@ -1,0 +1,54 @@
+name: Build Last Leaf for Linux
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Locate the Flutter project
+        id: project
+        shell: bash
+        run: |
+          project="$GITHUB_WORKSPACE"
+          if [[ -f Lanleaf-source.zip ]]; then
+            unzip -q Lanleaf-source.zip -d "$RUNNER_TEMP/source"
+            project="$RUNNER_TEMP/source/lanleaf"
+          fi
+          if [[ ! -f "$project/linux/CMakeLists.txt" ]]; then
+            echo '::error::Upload Lanleaf-source.zip version 0.5.0 or commit the extracted project.'
+            exit 1
+          fi
+          echo "path=$project" >> "$GITHUB_OUTPUT"
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang cmake ninja-build pkg-config libgtk-3-dev
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+
+      - name: Build Linux bundle
+        working-directory: ${{ steps.project.outputs.path }}
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter build linux --release --no-pub
+          tar -czf "$RUNNER_TEMP/Last-Leaf-Linux-x64.tar.gz" -C build/linux/x64/release/bundle .
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/Last-Leaf-Linux-x64.tar.gz
+          archive: false
+          if-no-files-found: error
